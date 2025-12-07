@@ -8,9 +8,9 @@ on:
 
 # Autorise le workflow à écrire dans les pages GitHub
 permissions:
-  contents: read # Nécessaire pour lire le code source
-  pages: write   # Nécessaire pour écrire sur la branche gh-pages via l'action de déploiement
-  id-token: write # Nécessaire pour authentification OIDC
+  contents: write # Nécessaire pour pusher sur gh-pages via peaceiris
+  pages: write    # Peut aussi être nécessaire selon la config
+  id-token: write # Pour l'authentification OIDC
 
 # Permet un seul déploiement à la fois
 concurrency:
@@ -18,14 +18,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
       with:
-        persist-credentials: false # Important pour éviter les conflits avec deploy-pages
-        fetch-depth: 0            # Nécessaire pour trunk et potentialités futures
+        persist-credentials: false # Important pour éviter les conflits avec le déploiement
+        fetch-depth: 0            # Nécessaire pour trunk
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
@@ -53,28 +53,12 @@ jobs:
     - name: Create .nojekyll file in dist
       run: touch dist/.nojekyll
 
-    # --- ÉTAPE CRUCIALE : Télécharger l'artefact pour le déploiement ---
-    # Utilisez actions/upload-pages-artifact pour le job deploy
-    - name: Upload artifact
-      uses: actions/upload-pages-artifact@v3
-      with:
-        path: dist # Le dossier généré par trunk, contenant index.html, .wasm, .js, .nojekyll
-
-  # Job de déploiement
-  deploy:
-    needs: build # Dépend du job build
-    runs-on: ubuntu-latest
-    # --- ÉTAPE CRUCIALE : Environnement github-pages ---
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-    # --- ÉTAPE CRUCIALE : Déployer l'artefact ---
-    # Cette action télécharge automatiquement l'artefact uploadé par actions/upload-pages-artifact
+    # --- DÉPLOIEMENT DIRECT AVEC PEACEIRIS ---
     - name: Deploy to GitHub Pages
-      id: deployment
-      uses: actions/deploy-pages@v4
-      # Pas besoin de spécifier de chemin, il utilise l'artefact uploadé
-      # Par défaut, il publie sur la branche configurée dans les paramètres du dépôt
-      # ou sur la branche 'gh-pages' si 'Deploy from a branch' est sélectionné avec 'gh-pages'.
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }} # Utilise le GITHUB_TOKEN automatique
+        publish_dir: ./dist # Dossier à publier
+        publish_branch: gh-pages # Branche de destination
+        force_orphan: true # Force la création de la branche gh-pages (la supprime si elle existait)
+        # Cela devrait forcer la création de la branche et y pousser le contenu de dist
