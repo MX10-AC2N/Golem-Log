@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <meta name="theme-color" content="#333" />
-    <title>~ Guide Eos ~ Le Guide Ultime </title>
+    <title>📘 Guide Eos – Le Guide Ultime (Novice à Expert)</title>
     <style>
         /* Inclure le CSS ici ou via un lien vers un fichier CSS externe */
         /* Utilisez le contenu de la constante CSS définie dans lib.rs */
@@ -94,7 +94,10 @@ a:hover { text-decoration: underline; }
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
 </head>
-<script>
+<body>
+    <div id="app"></div>
+    <!-- Script de chargement du service worker (optionnel mais utile pour PWA) -->
+    <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('sw.js')
@@ -106,8 +109,8 @@ a:hover { text-decoration: underline; }
             });
         });
       }
-</script>
- <body>
-    <div id="app"></div>  
- </body>
+    </script>
+    <!-- NE PAS INCLURE LE SCRIPT DE CHARGEMENT WASM ICI -->
+    <!-- Trunk s'en occupera -->
+</body>
 </html>
