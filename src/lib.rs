@@ -1644,7 +1644,7 @@ enum View {
 }
 
 // --- Composant d'en-tête ---
-#[derive(Properties, PartialEq, Clone)]
+#[derive(Properties, PartialEq, Clone)] // <--- S'assurer que Properties est bien là
 struct HeaderProps {
     on_show_home: Callback<MouseEvent>,
     on_go_back: Callback<MouseEvent>,
