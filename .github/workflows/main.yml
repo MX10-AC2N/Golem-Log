@@ -2,13 +2,13 @@ name: Build and Deploy
 
 on:
   push:
-    branches: [ "main" ] # Déclenche le workflow lors d'un push sur la branche 'main'
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
 # Autorise le workflow à écrire dans les pages GitHub
 permissions:
-  contents: write # Nécessaire pour pusher sur la branche gh-pages
+  contents: write
   pages: write
   id-token: write
 
@@ -19,22 +19,22 @@ concurrency:
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest # Utilise un runner Ubuntu
+    runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4 # Étape 1: Récupère le code source
+    - uses: actions/checkout@v4
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable # Étape 2: Installe la toolchain Rust stable
+      uses: dtolnay/rust-toolchain@stable
       with:
-        targets: wasm32-unknown-unknown # Installe le target WASM
+        targets: wasm32-unknown-unknown
 
     - name: Install Trunk
-      uses: jetli/trunk-action@v0.5.0 # Étape 3: Installe Trunk
+      uses: jetli/trunk-action@v0.5.0
       with:
-        version: 'latest' # ou une version spécifique comme '0.18.0'
+        version: 'latest'
 
-    - name: Cache Trunk build directory # Étape 4: Met en cache le répertoire de build pour accélérer les builds suivants
+    - name: Cache Trunk build directory
       uses: actions/cache@v4
       with:
         path: |
@@ -43,19 +43,20 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-trunk-
 
-    - name: Build with Trunk # Étape 5: Exécute `trunk build --release`
+    # Assurez-vous que votre index.html source (dans le repo) ait un point d'entrée compatible trunk
+    # ou laissez trunk injecter le script automatiquement (voir point 3 ci-dessous)
+    - name: Build with Trunk
       run: trunk build --release --public-url ./
 
-    # --- ÉTAPE AJOUTÉE POUR ÉVITER LE TRAITEMENT JEKYLL ---
-    - name: Create .nojekyll file
-      run: touch dist/.nojekyll # Crée un fichier vide .nojekyll dans le dossier dist
+    # --- AJOUTER CETTE ÉTAPE APRÈS trunk build ---
+    - name: Create .nojekyll file in dist
+      run: touch dist/.nojekyll # Crée le fichier .nojekyll DANS le dossier dist généré par trunk
 
-    # --- NOUVELLE ÉTAPE : Déploiement avec peaceiris/actions-gh-pages ---
     - name: Deploy to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v4 # Utilise une action de déploiement spécifique
+      uses: peaceiris/actions-gh-pages@v4
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }} # Utilise le token par défaut
-        publish_dir: ./dist # Dossier à publier
-        publish_branch: gh-pages # Branche de publication
-        force_orphan: true # Crée la branche gh-pages si elle n'existe pas, ou la réinitialise
-        # Cela écrase le contenu existant de gh-pages à chaque déploiement
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./dist # Dossier généré par trunk, contenant le bon index.html
+        publish_branch: gh-pages
+        force_orphan: true # Crée ou réinitialise la branche gh-pages
+        # Ne plus inclure enable_jekyll: false ici n'est pas nécessaire si .nojekyll est dans dist
