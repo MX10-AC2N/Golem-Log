@@ -22,7 +22,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    # --- MODIFICATION ICI ---
     - uses: actions/checkout@v4
+      with:
+        persist-credentials: false # Empêche des conflits potentiels de git remote
+        fetch-depth: 0            # Récupère l'historique complet, nécessaire pour force_orphan
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
@@ -43,20 +47,17 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-trunk-
 
-    # Assurez-vous que votre index.html source (dans le repo) ait un point d'entrée compatible trunk
-    # ou laissez trunk injecter le script automatiquement (voir point 3 ci-dessous)
     - name: Build with Trunk
       run: trunk build --release --public-url ./
 
-    # --- AJOUTER CETTE ÉTAPE APRÈS trunk build ---
     - name: Create .nojekyll file in dist
-      run: touch dist/.nojekyll # Crée le fichier .nojekyll DANS le dossier dist généré par trunk
+      run: touch dist/.nojekyll
 
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./dist # Dossier généré par trunk, contenant le bon index.html
-        publish_branch: gh-pages
+        publish_dir: ./dist # Dossier généré par trunk
+        publish_branch: gh-pages # Branche de publication
         force_orphan: true # Crée ou réinitialise la branche gh-pages
         # Ne plus inclure enable_jekyll: false ici n'est pas nécessaire si .nojekyll est dans dist
