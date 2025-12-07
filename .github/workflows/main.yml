@@ -1,0 +1,66 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [ "main" ] # Déclenche le workflow lors d'un push sur la branche 'main'
+  pull_request:
+    branches: [ "main" ]
+
+# Autorise le workflow à écrire dans les pages GitHub
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Permet un seul déploiement à la fois
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest # Utilise un runner Ubuntu
+
+    steps:
+    - uses: actions/checkout@v4 # Étape 1: Récupère le code source
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable # Étape 2: Installe la toolchain Rust stable
+      with:
+        targets: wasm32-unknown-unknown # Installe le target WASM
+
+    - name: Install Trunk
+      uses: jetli/trunk-action@v0.5.0 # Étape 3: Installe Trunk
+      with:
+        version: 'latest' # ou une version spécifique comme '0.18.0'
+
+    - name: Cache Trunk build directory # Étape 4: Met en cache le répertoire de build pour accélérer les builds suivants
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/trunk
+        key: ${{ runner.os }}-trunk-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-trunk-
+
+    - name: Build with Trunk # Étape 5: Exécute `trunk build --release`
+      run: trunk build --release --public-url ./
+
+    - name: Setup Pages # Étape 6: Configure l'environnement GitHub Pages
+      uses: actions/configure-pages@v5
+
+    - name: Upload artifact # Étape 7: Télécharge le dossier 'dist' (contenant le site compilé) comme artefact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: 'dist' # Le dossier que Trunk génère
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }} # L'URL où la page sera déployée
+    runs-on: ubuntu-latest
+    needs: build # Dépend du job 'build'
+    steps:
+      - name: Deploy to GitHub Pages # Étape 8: Déploie l'artefact sur GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
