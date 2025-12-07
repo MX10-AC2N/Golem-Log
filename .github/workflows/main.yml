@@ -8,7 +8,7 @@ on:
 
 # Autorise le workflow à écrire dans les pages GitHub
 permissions:
-  contents: write
+  contents: write # Nécessaire pour actions/deploy-pages
   pages: write
   id-token: write
 
@@ -18,15 +18,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-    # --- MODIFICATION ICI ---
     - uses: actions/checkout@v4
       with:
-        persist-credentials: false # Empêche des conflits potentiels de git remote
-        fetch-depth: 0            # Récupère l'historique complet, nécessaire pour force_orphan
+        persist-credentials: false # Important pour éviter les conflits avec deploy-pages
+        fetch-depth: 0            # Nécessaire pour trunk et potentialités futures
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
@@ -50,14 +49,27 @@ jobs:
     - name: Build with Trunk
       run: trunk build --release --public-url ./
 
+    # --- ÉTAPE CRUCIALE : Créer .nojekyll dans dist ---
     - name: Create .nojekyll file in dist
       run: touch dist/.nojekyll
 
-    - name: Deploy to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v4
+    # --- ÉTAPE CRUCIALE : Télécharger l'artefact pour le déploiement ---
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./dist # Dossier généré par trunk
-        publish_branch: gh-pages # Branche de publication
-        force_orphan: true # Crée ou réinitialise la branche gh-pages
-        # Ne plus inclure enable_jekyll: false ici n'est pas nécessaire si .nojekyll est dans dist
+        path: dist # Le dossier généré par trunk
+
+  # Job de déploiement
+  deploy:
+    needs: build # Dépend du job build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+    # --- ÉTAPE CRUCIALE : Déployer l'artefact ---
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+      # Pas besoin de spécifier de chemin, il utilise l'artefact uploadé
