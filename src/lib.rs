@@ -1628,7 +1628,7 @@ fn app() -> Html {
 
     html! {
         <div class="container">
-            <Header on_show_home={show_home} on_go_back={go_back} current_view={*current_view} />
+            <Header on_show_home={show_home} on_go_back={go_back} current_view={current_view.clone()} />
             {view_html}
         </div>
     }
@@ -1758,6 +1758,9 @@ fn commands_view(props: &CommandsViewProps) -> Html {
 
     if let Some(cat) = category {
         if let Some(subcat) = subcategory {
+            // --- CORRECTION : Capturer les valeurs nécessaires pour la closure ---
+            let on_add_command = props.on_add_command.clone();
+            let subcat_id_for_closure = props.subcategory_id.clone();
             html! {
                 <div id="command-list-view" class="view active">
                     <h1>{ format!("{} > {}", cat.name, subcat.name) }</h1>
@@ -1767,14 +1770,14 @@ fn commands_view(props: &CommandsViewProps) -> Html {
                             // Ici, on émet une commande vide ou un signal pour ouvrir la modale
                             let new_cmd = Command {
                                 id: "new".to_string(), // Générer un ID unique réellement
-                                subcat: props.subcategory_id.clone(),
+                                subcat: subcat_id_for_closure.clone(), // Utiliser la valeur capturée
                                 action: "".to_string(),
                                 description: "".to_string(),
                                 syntaxes: None,
                                 examples: None,
                                 tips: None,
                             };
-                            props.on_add_command.emit(new_cmd); // Cet appel est incorrect ici, voir commentaire plus bas
+                            on_add_command.emit(new_cmd); // Utiliser le callback cloné
                         })
                     }>{"➕ Ajouter une commande"}</button>
                     <div id="command-list-container">
@@ -1830,6 +1833,12 @@ fn detail_view(props: &DetailViewProps) -> Html {
             }).collect::<Html>()
         }).unwrap_or_default();
 
+        // --- CORRECTION : Capturer les valeurs nécessaires pour les closures ---
+        let cmd_id_for_delete = cmd.id.clone();
+        let on_delete = props.on_delete.clone();
+        let cmd_for_edit = cmd.clone();
+        let on_edit = props.on_edit.clone();
+
         html! {
             <div id="detail-view" class="view active">
                 <h1>{ &cmd.action }</h1>
@@ -1854,24 +1863,16 @@ fn detail_view(props: &DetailViewProps) -> Html {
                     }
                     <div class="action-buttons">
                         <button onclick={
-                            Callback::from({
-                                let cmd = cmd.clone();
-                                let on_edit = props.on_edit.clone();
-                                move |_| {
-                                    // Ouvrir une modale d'édition avec les données de `cmd`
-                                    // Ici, on émet la commande actuelle pour modification
-                                    on_edit.emit(cmd.clone()); // Cet appel est incorrect ici, voir commentaire plus bas
-                                }
+                            Callback::from(move |_| {
+                                // Ouvrir une modale d'édition avec les données de `cmd`
+                                // Ici, on émet la commande actuelle pour modification
+                                on_edit.emit(cmd_for_edit.clone()); // Utiliser la commande clonée
                             })
                         }>{ "✏️ Éditer" }</button>
                         <button onclick={
-                            Callback::from({
-                                let cmd_id = cmd.id.clone();
-                                let on_delete = props.on_delete.clone();
-                                move |_| {
-                                    if web_sys::window().unwrap().confirm_with_message("Êtes-vous sûr de vouloir supprimer cette commande ?").unwrap_or(false) {
-                                        on_delete.emit(cmd_id);
-                                    }
+                            Callback::from(move |_| {
+                                if web_sys::window().unwrap().confirm_with_message("Êtes-vous sûr de vouloir supprimer cette commande ?").unwrap_or(false) {
+                                    on_delete.emit(cmd_id_for_delete.clone()); // Utiliser l'ID cloné
                                 }
                             })
                         }>{ "🗑️ Supprimer" }</button>
