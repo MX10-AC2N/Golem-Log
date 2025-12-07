@@ -8,9 +8,9 @@ on:
 
 # Autorise le workflow à écrire dans les pages GitHub
 permissions:
-  contents: write # Nécessaire pour actions/deploy-pages
-  pages: write
-  id-token: write
+  contents: read # Nécessaire pour lire le code source
+  pages: write   # Nécessaire pour écrire sur la branche gh-pages via l'action de déploiement
+  id-token: write # Nécessaire pour authentification OIDC
 
 # Permet un seul déploiement à la fois
 concurrency:
@@ -54,22 +54,27 @@ jobs:
       run: touch dist/.nojekyll
 
     # --- ÉTAPE CRUCIALE : Télécharger l'artefact pour le déploiement ---
+    # Utilisez actions/upload-pages-artifact pour le job deploy
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v3
       with:
-        path: dist # Le dossier généré par trunk
+        path: dist # Le dossier généré par trunk, contenant index.html, .wasm, .js, .nojekyll
 
   # Job de déploiement
   deploy:
     needs: build # Dépend du job build
     runs-on: ubuntu-latest
+    # --- ÉTAPE CRUCIALE : Environnement github-pages ---
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
     # --- ÉTAPE CRUCIALE : Déployer l'artefact ---
+    # Cette action télécharge automatiquement l'artefact uploadé par actions/upload-pages-artifact
     - name: Deploy to GitHub Pages
       id: deployment
       uses: actions/deploy-pages@v4
       # Pas besoin de spécifier de chemin, il utilise l'artefact uploadé
+      # Par défaut, il publie sur la branche configurée dans les paramètres du dépôt
+      # ou sur la branche 'gh-pages' si 'Deploy from a branch' est sélectionné avec 'gh-pages'.
