@@ -3,8 +3,8 @@ const CACHE_NAME = 'eos-guide-v1';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/pkg/eos_guide_wasm.js', // Fichier généré par trunk
-  '/pkg/eos_guide_wasm_bg.wasm' // Fichier généré par trunk
+  '/eos_guide_wasm.js', // Fichier généré par trunk
+  '/eos_guide_wasm_bg.wasm' // Fichier généré par trunk
 ];
 
 self.addEventListener('install', (event) => {
