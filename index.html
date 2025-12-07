@@ -101,5 +101,18 @@ a:hover { text-decoration: underline; }
         import init from './pkg/eos_guide_wasm.js';
         init();
     </script>
-</body>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('sw.js')
+            .then((registration) => {
+              console.log('SW enregistré: ', registration);
+            })
+            .catch((registrationError) => {
+              console.log('Échec de l\'enregistrement du SW: ', registrationError);
+            });
+        });
+      }
+    </script>
+  </body>
 </html>
