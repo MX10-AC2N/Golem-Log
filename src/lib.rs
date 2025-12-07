@@ -1628,7 +1628,7 @@ fn app() -> Html {
 
     html! {
         <div class="container">
-            <Header on_show_home={show_home} on_go_back={go_back} current_view={current_view.clone()} />
+            <Header on_show_home={show_home} on_go_back={go_back} current_view={(*current_view).clone()} />
             {view_html}
         </div>
     }
