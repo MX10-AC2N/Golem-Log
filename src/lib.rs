@@ -1952,3 +1952,16 @@ a:hover { text-decoration: underline; }
 .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
 .form-actions { display: flex; gap: 10px; justify-content: flex-end; }
 .form-actions button { padding: 8px 16px; font-weight: 600; }
+.footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border); font-size: 0.8em; color: #aaa; }
+/* Responsive */
+@media (max-width: 600px) {
+    .category-grid { grid-template-columns: 1fr; }
+    .header { flex-direction: column; gap: 10px; }
+    .action-buttons { flex-direction: column; }
+    .action-buttons button { width: 100%; }
+}
+"#;
+
+fn main() {
+    yew::Renderer::<App>::new().render();
+}
