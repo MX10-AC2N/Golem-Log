@@ -1,12 +1,7 @@
-use gloo::console::log;
+use gloo::console::log; // Pour logging potentiel
 use gloo::storage::{LocalStorage, Storage};
-use gloo::utils::document;
-use js_sys::Array;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::JsFuture;
-use web_sys::{console, window, Request, RequestInit, RequestMode, Response};
+use web_sys::console; // Pour les erreurs console
 use yew::prelude::*;
 
 // --- Structures de données ---
@@ -1450,196 +1445,209 @@ const INITIAL_DATA_JSON: &str = r#"
 }
 "#;
 
+// --- Types pour la navigation ---
+#[derive(Clone, PartialEq)]
+enum View {
+    Home,
+    Subcategories,
+    Commands,
+    Detail,
+}
+
 // --- Composant principal ---
 #[function_component(App)]
 fn app() -> Html {
-    let state_result = load_state_from_storage();
+    // --- 1. Hooks Yew : TOUJOURS AU DÉBUT de la fonction ---
+    // Charge l'état initial (soit depuis localStorage, soit les données par défaut)
+    let initial_data_result = load_state_from_storage(); // Fonction qui retourne Result<InitialData, Error>
 
-    match state_result {
-        Ok(initial_state) => {
-            let state = use_state(|| initial_state);
-            let current_view = use_state(|| View::Home);
-            let current_category_id = use_state(|| None::<String>);
-            let current_subcategory_id = use_state(|| None::<String>);
-            let current_command_id = use_state(|| None::<String>);
-
-            let state_clone = state.clone();
-            let save_state = Callback::from(move |new_state: InitialData| {
-                state_clone.set(new_state.clone());
-                if let Err(e) = LocalStorage::set("eos_guide_state", &new_state) {
-                    console::error_1(&format!("Erreur de sauvegarde dans localStorage: {:?}", e).into());
-                    // Optionnel: afficher un message à l'utilisateur
-                    // web_sys::window().unwrap().alert_with_message("Erreur de sauvegarde dans le navigateur.").unwrap();
+    // Stocke l'état principal de l'application
+    let state = use_state(|| {
+        match initial_data_result {
+            Ok(data) => data,
+            Err(e) => {
+                console::error_1(&format!("Erreur de chargement initial: {:?}", e).into());
+                // Si le chargement échoue, on peut charger les données par défaut
+                // et potentiellement les sauvegarder.
+                let default_data = serde_json::from_str(INITIAL_DATA_JSON).unwrap();
+                // Tentative de sauvegarde initiale si nécessaire
+                if let Err(save_e) = LocalStorage::set("eos_guide_state", &default_data) {
+                     console::error_1(&format!("Erreur sauvegarde initiale: {:?}", save_e).into());
                 }
-            });
+                default_data
+            }
+        }
+    });
 
-            // --- Callbacks de navigation ---
-            let go_back = {
-                let current_view = current_view.clone();
-                let current_category_id = current_category_id.clone();
-                let current_subcategory_id = current_subcategory_id.clone();
-                let current_command_id = current_command_id.clone();
-                Callback::from(move |_| {
-                    match *current_view {
-                        View::Detail => {
-                            current_view.set(View::Commands);
-                            current_command_id.set(None);
-                        }
-                        View::Commands => {
-                            current_view.set(View::Subcategories);
-                            current_subcategory_id.set(None);
-                        }
-                        View::Subcategories => {
-                            current_view.set(View::Home);
-                            current_category_id.set(None);
-                        }
-                        View::Home => {} // Déjà à la racine
-                    }
-                })
-            };
+    // Hooks pour la navigation et les ID courants
+    let current_view = use_state(|| View::Home);
+    let current_category_id = use_state(|| None::<String>);
+    let current_subcategory_id = use_state(|| None::<String>);
+    let current_command_id = use_state(|| None::<String>);
 
-            let show_home = {
-                let current_view = current_view.clone();
-                let current_category_id = current_category_id.clone();
-                let current_subcategory_id = current_subcategory_id.clone();
-                let current_command_id = current_command_id.clone();
-                Callback::from(move |_| {
-                    current_view.set(View::Home);
-                    current_category_id.set(None);
-                    current_subcategory_id.set(None);
-                    current_command_id.set(None);
-                })
-            };
+    // Hook pour la fonction de sauvegarde
+    let state_clone = state.clone();
+    let save_state = Callback::from(move |new_state: InitialData| {
+        state_clone.set(new_state.clone());
+        if let Err(e) = LocalStorage::set("eos_guide_state", &new_state) {
+            console::error_1(&format!("Erreur de sauvegarde dans localStorage: {:?}", e).into());
+        }
+    });
 
-            let show_subcategories = {
-                let current_view = current_view.clone();
-                let current_category_id = current_category_id.clone();
-                Callback::from(move |cat_id: String| {
-                    current_view.set(View::Subcategories);
-                    current_category_id.set(Some(cat_id));
-                })
-            };
-
-            let show_commands = {
-                let current_view = current_view.clone();
-                let current_subcategory_id = current_subcategory_id.clone();
-                Callback::from(move |subcat_id: String| {
+    // --- 2. Callbacks de navigation et de modification ---
+    // (Définis ici, peuvent capturer les hooks définis avant eux)
+    let go_back = {
+        let current_view = current_view.clone();
+        let current_category_id = current_category_id.clone();
+        let current_subcategory_id = current_subcategory_id.clone();
+        let current_command_id = current_command_id.clone();
+        Callback::from(move |_| {
+            match *current_view {
+                View::Detail => {
                     current_view.set(View::Commands);
-                    current_subcategory_id.set(Some(subcat_id));
-                })
-            };
-
-            let show_detail = {
-                let current_view = current_view.clone();
-                let current_command_id = current_command_id.clone();
-                Callback::from(move |cmd_id: String| {
-                    current_view.set(View::Detail);
-                    current_command_id.set(Some(cmd_id));
-                })
-            };
-
-            // --- Callbacks de modification ---
-            let add_command = {
-                let state = state.clone();
-                let save_state = save_state.clone();
-                let current_subcategory_id = current_subcategory_id.clone();
-                Callback::from(move |new_cmd: Command| {
-                    let mut new_state = (*state).clone();
-                    let subcat_id = current_subcategory_id.as_deref().unwrap_or_default();
-                    if new_cmd.subcat == subcat_id {
-                         new_state.commands.push(new_cmd);
-                         save_state.emit(new_state);
-                    } else {
-                         log!("Erreur: subcat de la commande ne correspond pas à la sous-catégorie courante.");
-                    }
-                })
-            };
-
-            let edit_command = {
-                let state = state.clone();
-                let save_state = save_state.clone();
-                Callback::from(move |updated_cmd: Command| {
-                    let mut new_state = (*state).clone();
-                    if let Some(index) = new_state.commands.iter().position(|c| c.id == updated_cmd.id) {
-                        new_state.commands[index] = updated_cmd;
-                        save_state.emit(new_state);
-                    }
-                })
-            };
-
-            let delete_command = {
-                let state = state.clone();
-                let save_state = save_state.clone();
-                Callback::from(move |cmd_id: String| {
-                    let mut new_state = (*state).clone();
-                    new_state.commands.retain(|c| c.id != cmd_id);
-                    save_state.emit(new_state);
-                })
-            };
-
-            // --- Rendu conditionnel selon la vue ---
-            let view_html = match *current_view {
-                View::Home => html! {
-                    <HomeView
-                        state={(*state).clone()}
-                        on_show_subcategories={show_subcategories}
-                    />
-                },
-                View::Subcategories => {
-                    let cat_id = current_category_id.as_deref().unwrap_or_default();
-                    html! {
-                        <SubcategoriesView
-                            state={(*state).clone()}
-                            category_id={cat_id.to_string()}
-                            on_show_commands={show_commands}
-                        />
-                    }
+                    current_command_id.set(None);
                 }
                 View::Commands => {
-                    let subcat_id = current_subcategory_id.as_deref().unwrap_or_default();
-                    html! {
-                        <CommandsView
-                            state={(*state).clone()}
-                            subcategory_id={subcat_id.to_string()}
-                            on_show_detail={show_detail}
-                            on_add_command={add_command}
-                        />
-                    }
+                    current_view.set(View::Subcategories);
+                    current_subcategory_id.set(None);
                 }
-                View::Detail => {
-                    let cmd_id = current_command_id.as_deref().unwrap_or_default();
-                    html! {
-                        <DetailView
-                            state={(*state).clone()}
-                            command_id={cmd_id.to_string()}
-                            on_edit={edit_command}
-                            on_delete={delete_command}
-                            on_go_back={go_back.clone()}
-                        />
-                    }
+                View::Subcategories => {
+                    current_view.set(View::Home);
+                    current_category_id.set(None);
                 }
-            };
+                View::Home => {} // Déjà à la racine
+            }
+        })
+    };
 
+    let show_home = {
+        let current_view = current_view.clone();
+        let current_category_id = current_category_id.clone();
+        let current_subcategory_id = current_subcategory_id.clone();
+        let current_command_id = current_command_id.clone();
+        Callback::from(move |_| {
+            current_view.set(View::Home);
+            current_category_id.set(None);
+            current_subcategory_id.set(None);
+            current_command_id.set(None);
+        })
+    };
+
+    let show_subcategories = {
+        let current_view = current_view.clone();
+        let current_category_id = current_category_id.clone();
+        Callback::from(move |cat_id: String| {
+            current_view.set(View::Subcategories);
+            current_category_id.set(Some(cat_id));
+        })
+    };
+
+    let show_commands = {
+        let current_view = current_view.clone();
+        let current_subcategory_id = current_subcategory_id.clone();
+        Callback::from(move |subcat_id: String| {
+            current_view.set(View::Commands);
+            current_subcategory_id.set(Some(subcat_id));
+        })
+    };
+
+    let show_detail = {
+        let current_view = current_view.clone();
+        let current_command_id = current_command_id.clone();
+        Callback::from(move |cmd_id: String| {
+            current_view.set(View::Detail);
+            current_command_id.set(Some(cmd_id));
+        })
+    };
+
+    // Callbacks de modification
+    let add_command = {
+        let state = state.clone();
+        let save_state = save_state.clone();
+        let current_subcategory_id = current_subcategory_id.clone();
+        Callback::from(move |new_cmd: Command| {
+            let mut new_state = (*state).clone();
+            let subcat_id = current_subcategory_id.as_deref().unwrap_or_default();
+            if new_cmd.subcat == subcat_id {
+                 new_state.commands.push(new_cmd);
+                 save_state.emit(new_state);
+            } else {
+                 log!("Erreur: subcat de la commande ne correspond pas à la sous-catégorie courante.");
+            }
+        })
+    };
+
+    let edit_command = {
+        let state = state.clone();
+        let save_state = save_state.clone();
+        Callback::from(move |updated_cmd: Command| {
+            let mut new_state = (*state).clone();
+            if let Some(index) = new_state.commands.iter().position(|c| c.id == updated_cmd.id) {
+                new_state.commands[index] = updated_cmd;
+                save_state.emit(new_state);
+            }
+        })
+    };
+
+    let delete_command = {
+        let state = state.clone();
+        let save_state = save_state.clone();
+        Callback::from(move |cmd_id: String| {
+            let mut new_state = (*state).clone();
+            new_state.commands.retain(|c| c.id != cmd_id);
+            save_state.emit(new_state);
+        })
+    };
+
+    // --- 3. Logique de rendu conditionnel ---
+    let view_html = match *current_view {
+        View::Home => html! {
+            <HomeView
+                state={(*state).clone()}
+                on_show_subcategories={show_subcategories}
+            />
+        },
+        View::Subcategories => {
+            let cat_id = current_category_id.as_deref().unwrap_or_default();
             html! {
-                <div class="container">
-                    <Header on_show_home={show_home} on_go_back={go_back} current_view={(*current_view).clone()} />
-                    {view_html}
-                </div>
+                <SubcategoriesView
+                    state={(*state).clone()}
+                    category_id={cat_id.to_string()}
+                    on_show_commands={show_commands}
+                />
             }
         }
-        Err(e) => {
-            // Afficher un message d'erreur à l'utilisateur
-            console::error_1(&format!("Erreur de chargement initial: {:?}", e).into());
+        View::Commands => {
+            let subcat_id = current_subcategory_id.as_deref().unwrap_or_default();
             html! {
-                <div class="container">
-                    <div class="error-message">
-                        <h1>{ "Erreur de chargement" }</h1>
-                        <p>{ "Impossible de charger la base de données du guide. Veuillez rafraîchir la page ou vérifier votre navigateur." }</p>
-                        // Optionnel: bouton pour réessayer le chargement
-                    </div>
-                </div>
+                <CommandsView
+                    state={(*state).clone()}
+                    subcategory_id={subcat_id.to_string()}
+                    on_show_detail={show_detail}
+                    on_add_command={add_command}
+                />
             }
         }
+        View::Detail => {
+            let cmd_id = current_command_id.as_deref().unwrap_or_default();
+            html! {
+                <DetailView
+                    state={(*state).clone()}
+                    command_id={cmd_id.to_string()}
+                    on_edit={edit_command}
+                    on_delete={delete_command}
+                    on_go_back={go_back.clone()}
+                />
+            }
+        }
+    };
+
+    // --- 4. Rendu final ---
+    html! {
+        <div class="container">
+            <Header on_show_home={show_home} on_go_back={go_back} current_view={(*current_view).clone()} />
+            {view_html}
+        </div>
     }
 }
 
@@ -1671,15 +1679,6 @@ fn load_state_from_storage() -> Result<InitialData, Box<dyn std::error::Error>> 
     }
 }
 
-
-// --- Types pour la navigation ---
-#[derive(Clone, PartialEq)]
-enum View {
-    Home,
-    Subcategories,
-    Commands,
-    Detail,
-}
 
 // --- Composant d'en-tête ---
 #[derive(Properties, PartialEq, Clone)] // <--- S'assurer que Properties est bien là
@@ -2003,4 +2002,4 @@ a:hover { text-decoration: underline; }
 
 fn main() {
     yew::Renderer::<App>::new().render();
-                    }
+}
